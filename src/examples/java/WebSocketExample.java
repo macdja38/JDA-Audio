@@ -70,51 +70,56 @@ public class WebSocketExample extends WebSocketAdapter
     @Override
     public void onTextMessage(WebSocket websocket, String text) throws Exception
     {
-        System.out.println("Received Text Message");
-        System.out.println(text);
-        JSONObject obj = new JSONObject(text);
-        System.out.println("Parsed JSON");
+        try {
+            System.out.println("Received Text Message");
+            System.out.println(text);
+            JSONObject obj = new JSONObject(text);
+            System.out.println("Parsed JSON");
 
-        String identifier = obj.getString("identifier");
-        String nonce = obj.getString("nonce");
-        String action = obj.getString("action");
+            String guild_id = obj.getString("guild_id");
+            String nonce = obj.getString("nonce");
+            String action = obj.getString("action");
 
-        System.out.println("Before Get Core");
+            System.out.println("Before Get Core");
 
-        Core core = getCore(identifier);
+            Core core = getCore(guild_id);
 
-        System.out.println("After Get Core");
+            System.out.println("After Get Core");
 
-        System.out.println(action);
+            System.out.println(action);
 
-        switch (action) {
-            case "OPEN_CONNECTION": {
-                System.out.println("Trying to open connection");
-                String guildId = obj.getString("guild_id");
-                String channelId = obj.getString("channel_id");
+            switch (action) {
+                case "OPEN_CONNECTION": {
+                    System.out.println("Trying to open connection");
+                    String guildId = obj.getString("guild_id");
+                    String channelId = obj.getString("channel_id");
 
-                core.getAudioManager(guildId).openAudioConnection(channelId);
-                break;
+                    core.getAudioManager(guildId).openAudioConnection(channelId);
+                    break;
+                }
+                case "VOICE_SERVER_UPDATE": {
+                    String sessionId = obj.getString("session_id");
+                    JSONObject vsu = obj.getJSONObject("vsu");
+                    System.out.println("VOICE_SERVER_UPDATE");
+                    System.out.println("sessionId");
+                    System.out.println(vsu);
+
+                    core.provideVoiceServerUpdate(sessionId, vsu);
+                    break;
+                }
+                case "CLOSE_CONNECTION": {
+                    String guildId = obj.getString("guild_id");
+
+                    core.getAudioManager(guildId).closeAudioConnection();
+                    break;
+                }
+                case "PLAY_SONG": {
+                    String guildId = obj.getString("guild_id");
+                    loadAndPlay(core, guildId, "https://r17---sn-p5qlsn6e.googlevideo.com/videoplayback?source=youtube&mm=31&mn=sn-p5qlsn6e&pl=24&requiressl=yes&ip=192.99.34.113&mime=video%2Fmp4&expire=1495323970&id=o-AJXwixb79wuXwfWOXCv5GX9thLLEEj15BnOHTodW0bSN&ms=au&mt=1495302261&mv=m&ipbits=0&ratebypass=yes&upn=gOz8UmaVCtU&key=yt6&itag=22&dur=267.749&initcwndbps=767500&beids=%5B9466593%5D&sparams=dur%2Cei%2Cid%2Cinitcwndbps%2Cip%2Cipbits%2Citag%2Clmt%2Cmime%2Cmm%2Cmn%2Cms%2Cmv%2Cpl%2Cratebypass%2Crequiressl%2Csource%2Cupn%2Cexpire&lmt=1471599886719114&ei=4oAgWcjQI8XI8wSH66jAAw&signature=02BCA2B07E0D068BF205F5BF0751B029B64C5160.8A8801FE9A1C4C4D866F29ED476BB300B5356953" /*"riVdyBDw8SE"*/);
+                }
             }
-            case "VOICE_SERVER_UPDATE": {
-                String sessionId = obj.getString("session_id");
-                String vsuString = obj.getString("vsu");
-                JSONObject vsuObject = new JSONObject(vsuString);
-
-                core.provideVoiceServerUpdate(sessionId, vsuObject);
-                break;
-            }
-            case "CLOSE_CONNECTION": {
-                String guildId = obj.getString("guild_id");
-
-                core.getAudioManager(guildId).closeAudioConnection();
-                break;
-            }
-            case "PLAY_SONG":
-            {
-                String guildId = obj.getString("guild_id");
-                loadAndPlay(core, guildId, "riVdyBDw8SE");
-            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -229,18 +234,18 @@ public class WebSocketExample extends WebSocketAdapter
         System.out.println("Disconnected from localhost WS. Might wanna build a reconnect system!");
     }
 
-    private Core getCore(String identifier)
+    private Core getCore(String guild_id)
     {
-        Core core = cores.get(identifier);
+        Core core = cores.get(guild_id);
         if (core == null)
         {
             synchronized (cores)
             {
-                core = cores.get(identifier);
+                core = cores.get(guild_id);
                 if (core == null)
                 {
-                    core = new Core(userId, new MyCoreClient(identifier));
-                    cores.put(identifier, core);
+                    core = new Core(userId, new MyCoreClient(guild_id));
+                    cores.put(guild_id, core);
                 }
             }
         }
@@ -250,11 +255,11 @@ public class WebSocketExample extends WebSocketAdapter
 
     private class MyCoreClient implements CoreClient
     {
-        private final String identifier;
+        private final String guild_id;
 
-        public MyCoreClient(String identifier)
+        public MyCoreClient(String guild_id)
         {
-            this.identifier = identifier;
+            this.guild_id = guild_id;
         }
 
         @Override
@@ -262,7 +267,7 @@ public class WebSocketExample extends WebSocketAdapter
         {
             JSONObject obj = new JSONObject();
             obj.put("action", "SEND_WS");
-            obj.put("identifier", identifier);
+            obj.put("guild_id", guild_id);
             obj.put("message", message);
 
             socket.sendText(obj.toString());
